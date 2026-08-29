@@ -52,8 +52,10 @@ void SDL2TilePlaneSceneNode::VRender(Scene* pScene)
 
     // Some planes (Back, Front) repeat themselves, which means they can be rendered
     // even when out of bounds
-    int32_t maxTileIdxX = pProperties->tilesOnAxisX;
-    int32_t maxTileIdxY = pProperties->tilesOnAxisY;
+    // These are compared with <= below, so they must be the last valid index rather than
+    // the tile count - otherwise one extra row/column is drawn, wrapping to index 0.
+    int32_t maxTileIdxX = pProperties->tilesOnAxisX - 1;
+    int32_t maxTileIdxY = pProperties->tilesOnAxisY - 1;
     int32_t minTileIdxX = 0;
     int32_t minTileIdxY = 0;
     // TODO: Wrap even when when out of bounds on the negative side

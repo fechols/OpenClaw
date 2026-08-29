@@ -36,9 +36,9 @@ TiXmlElement* WwdToXml(WapWwd* wapWwd, int levelNumber)
     XML_ADD_TEXT_ELEMENT("ImageSet3", wapWwd->properties.imageSet3, levelProperties);
     XML_ADD_TEXT_ELEMENT("ImageSet4", wapWwd->properties.imageSet4, levelProperties);
     XML_ADD_TEXT_ELEMENT("Prefix1", wapWwd->properties.prefix1, levelProperties);
-    XML_ADD_TEXT_ELEMENT("Prefix2", wapWwd->properties.prefix1, levelProperties);
-    XML_ADD_TEXT_ELEMENT("Prefix3", wapWwd->properties.prefix1, levelProperties);
-    XML_ADD_TEXT_ELEMENT("Prefix4", wapWwd->properties.prefix1, levelProperties);
+    XML_ADD_TEXT_ELEMENT("Prefix2", wapWwd->properties.prefix2, levelProperties);
+    XML_ADD_TEXT_ELEMENT("Prefix3", wapWwd->properties.prefix3, levelProperties);
+    XML_ADD_TEXT_ELEMENT("Prefix4", wapWwd->properties.prefix4, levelProperties);
 
     XML_ADD_TEXT_ELEMENT("UseZCoords", ToStr((wapWwd->properties.flags & 2) != 0).c_str(), levelProperties);
 

@@ -8,6 +8,7 @@
 class PalResourceExtraData : public IResourceExtraData
 {
 public:
+    PalResourceExtraData() { _palette = NULL; }
     virtual ~PalResourceExtraData();
 
     virtual std::string VToString() { return "PalResourceExtraData"; }

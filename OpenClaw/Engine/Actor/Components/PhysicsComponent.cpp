@@ -219,7 +219,10 @@ void PhysicsComponent::VPostInit()
 
             //LOG("-------- X: " + ToStr(pImage->GetOffsetX()) + " Y: " + ToStr(pImage->GetOffsetY()));
 
-            for (ActorFixtureDef fixture : m_ActorBodyDef.fixtureList)
+            // By reference: iterating by value wrote the image-dimension fix-up into a
+            // temporary copy, so fixtures that relied on it stayed zero-sized and Box2D
+            // got degenerate shapes.
+            for (ActorFixtureDef& fixture : m_ActorBodyDef.fixtureList)
             {
                 if (fixture.size.IsZero())
                 {

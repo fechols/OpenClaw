@@ -35,7 +35,9 @@ Audio::Audio()
     m_SoundVolume(0),
     m_MusicVolume(0),
     m_bSoundOn(true),
-    m_bMusicOn(true)
+    m_bMusicOn(true),
+    m_pCurrentMusic(NULL),
+    m_pCurrentMusicRWops(NULL)
 {
 
 }
@@ -156,10 +158,35 @@ static int SetupPlayMusicThread(void* pData)
     RpcEndExcept;
 #else
     SDL_RWops* pRWops = SDL_RWFromMem((void*)pMusicInfo->pMusicData, pMusicInfo->musicSize);
-    Mix_Music* pMusic = Mix_LoadMUS_RW(pRWops, 0);
-    if (!pMusic) {
+    Mix_Music* pMusic = pRWops ? Mix_LoadMUS_RW(pRWops, 0) : NULL;
+    if (!pMusic)
+    {
+        // Do not fall through into Mix_PlayMusic(NULL, ...) - report the failure and
+        // leave whatever was already playing alone.
         LOG_ERROR("Mix_LoadMUS_RW: " + std::string(Mix_GetError()));
+        if (pRWops)
+        {
+            SDL_FreeRW(pRWops);
+        }
+
+        SAFE_DELETE(pMusicInfo);
+        return 0;
     }
+
+    // Release the previous track. Mix_LoadMUS_RW was called with freesrc = 0, so the
+    // RWops belongs to us as well; both used to leak once per music change.
+    Mix_HaltMusic();
+    if (m_pCurrentMusic)
+    {
+        Mix_FreeMusic(m_pCurrentMusic);
+    }
+    if (m_pCurrentMusicRWops)
+    {
+        SDL_FreeRW(m_pCurrentMusicRWops);
+    }
+    m_pCurrentMusic = pMusic;
+    m_pCurrentMusicRWops = pRWops;
+
     Mix_PlayMusic(pMusic, pMusicInfo->looping ? -1 : 0);
 
     if (pMusicInfo->musicVolume == -1)
@@ -235,6 +262,17 @@ void Audio::StopMusic()
     RpcEndExcept
 #else
     Mix_HaltMusic();
+
+    if (m_pCurrentMusic)
+    {
+        Mix_FreeMusic(m_pCurrentMusic);
+        m_pCurrentMusic = NULL;
+    }
+    if (m_pCurrentMusicRWops)
+    {
+        SDL_FreeRW(m_pCurrentMusicRWops);
+        m_pCurrentMusicRWops = NULL;
+    }
 #endif //_WIN32
 }
 

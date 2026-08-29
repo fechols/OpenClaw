@@ -8,6 +8,7 @@
 class WwdResourceExtraData : public IResourceExtraData
 {
 public:
+    WwdResourceExtraData() { _wapWorldLevel = NULL; }
     virtual ~WwdResourceExtraData();
 
     virtual std::string VToString() { return "WwdResourceExtraData"; }

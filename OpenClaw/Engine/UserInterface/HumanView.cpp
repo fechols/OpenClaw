@@ -15,11 +15,15 @@ const uint32 g_InvalidGameViewId = 0xFFFFFFFF;
 HumanView::HumanView(SDL_Renderer* renderer)
     :
     m_bRendering(true),
-    m_bPostponeRenderPresent(false)
+    m_bPostponeRenderPresent(false),
+    m_CurrentTick(0),
+    m_LastDraw(0),
+    m_RunFullSpeed(true)
 {
     m_pProcessMgr = new ProcessMgr();
 
     m_ViewId = INVALID_GAME_VIEW_ID;
+    m_ActorId = INVALID_ACTOR_ID;
 
     RegisterAllDelegates();
 
@@ -357,8 +361,10 @@ void HumanView::RemoveAllDelegates()
         this, &HumanView::ActorEnteredBossAreaDelegate), EventData_Entered_Boss_Area::sk_EventType);
     IEventMgr::Get()->VRemoveListener(MakeDelegate(
         this, &HumanView::BossFightEndedDelegate), EventData_Boss_Fight_Ended::sk_EventType);
+    // This used to be a second copy of the line above, leaving IngameMenuEndGameDelegate
+    // registered against a destroyed HumanView.
     IEventMgr::Get()->VRemoveListener(MakeDelegate(
-        this, &HumanView::BossFightEndedDelegate), EventData_Boss_Fight_Ended::sk_EventType);
+        this, &HumanView::IngameMenuEndGameDelegate), EventData_IngameMenu_End_Game::sk_EventType);
 }
 
 //=====================================================================================================================
@@ -725,7 +731,9 @@ void HumanView::ActorEnteredBossAreaDelegate(IEventDataPtr pEventData)
     assert(g_pApp->GetGameLogic()->GetCurrentLevelData() != nullptr);
     int currentLevel = g_pApp->GetGameLogic()->GetCurrentLevelData()->GetLevelNumber();
 
-    std::string bossMusicPath = "LEVEL" + ToStr(currentLevel) + "/MUSIC/BOSS.XMI";
+    // Leading slash, like every other resource path in this file - without it the lookup
+    // misses and the music never loads.
+    std::string bossMusicPath = "/LEVEL" + ToStr(currentLevel) + "/MUSIC/BOSS.XMI";
 
     SoundInfo soundInfo(bossMusicPath);
     soundInfo.isMusic = true;

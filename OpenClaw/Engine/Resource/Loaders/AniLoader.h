@@ -8,6 +8,7 @@ class Animation;
 class AniResourceExtraData : public IResourceExtraData
 {
 public:
+    AniResourceExtraData() { _ani = NULL; }
     virtual ~AniResourceExtraData();
 
     virtual std::string VToString() { return "AniResourceExtraData"; }

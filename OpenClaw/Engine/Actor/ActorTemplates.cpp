@@ -1010,7 +1010,12 @@ namespace ActorTemplates
                 break;
 
             default:
+                // In release builds the assert is gone, componentName stays empty, and the
+                // nameless element below fails to resolve in the component factory - taking
+                // the whole enemy actor down with it.
                 assert(false && "Unknown damage type");
+                LOG_ERROR("Unknown attack damage type: " + ToStr((int)attackDamageType));
+                return NULL;
         }
 
         TiXmlElement* pAttackStateElem = new TiXmlElement(componentName.c_str());
@@ -2249,7 +2254,12 @@ namespace ActorTemplates
 
             meleeAttacks.push_back(meleeAttackAction);
 
-            pActor->LinkEndChild(CreateXmlData_EnemyAttackActionState(meleeAttacks));
+            // The builder returns NULL for an unrecognised damage type, and
+            // LinkEndChild dereferences its argument.
+            if (TiXmlElement* pAttackStateElem = CreateXmlData_EnemyAttackActionState(meleeAttacks))
+            {
+                pActor->LinkEndChild(pAttackStateElem);
+            }
 
             //=========================================================================================================
             // Ranged
@@ -2267,7 +2277,12 @@ namespace ActorTemplates
 
             rangedAttacks.push_back(rangedAttackAction);
 
-            pActor->LinkEndChild(CreateXmlData_EnemyAttackActionState(rangedAttacks));
+            // The builder returns NULL for an unrecognised damage type, and
+            // LinkEndChild dereferences its argument.
+            if (TiXmlElement* pAttackStateElem = CreateXmlData_EnemyAttackActionState(rangedAttacks))
+            {
+                pActor->LinkEndChild(pAttackStateElem);
+            }
 
 
             bodyDef.fixtureList.push_back(
@@ -2317,7 +2332,12 @@ namespace ActorTemplates
 
             meleeAttacks.push_back(meleeAttackAction);
 
-            pActor->LinkEndChild(CreateXmlData_EnemyAttackActionState(meleeAttacks));
+            // The builder returns NULL for an unrecognised damage type, and
+            // LinkEndChild dereferences its argument.
+            if (TiXmlElement* pAttackStateElem = CreateXmlData_EnemyAttackActionState(meleeAttacks))
+            {
+                pActor->LinkEndChild(pAttackStateElem);
+            }
 
 
             bodyDef.fixtureList.push_back(
@@ -2354,7 +2374,12 @@ namespace ActorTemplates
 
             rangedAttacks.push_back(rangedAttackAction);
 
-            pActor->LinkEndChild(CreateXmlData_EnemyAttackActionState(rangedAttacks));
+            // The builder returns NULL for an unrecognised damage type, and
+            // LinkEndChild dereferences its argument.
+            if (TiXmlElement* pAttackStateElem = CreateXmlData_EnemyAttackActionState(rangedAttacks))
+            {
+                pActor->LinkEndChild(pAttackStateElem);
+            }
 
             bodyDef.fixtureList.push_back(
                 CreateActorAgroRangeFixture(Point(1000, 50), Point(0, 0), FixtureType_EnemyAIRangedSensor));

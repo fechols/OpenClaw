@@ -122,7 +122,18 @@ Image* Image::CreatePcxImage(char* rawBuffer, uint32_t size, SDL_Renderer* rende
 {
     Image* pImage = new Image();
     SDL_RWops* pRWops = SDL_RWFromMem((void*)rawBuffer, size);
+    if (pRWops == NULL)
+    {
+        LOG_ERROR(SDL_GetError());
+        delete pImage;
+        return NULL;
+    }
+
     SDL_Surface* pSurface = IMG_LoadPCX_RW(pRWops);
+    // IMG_LoadPCX_RW does not close its source (unlike IMG_Load_RW with freesrc = 1), so
+    // the RWops has to be released here on every path - it used to leak on all of them.
+    SDL_FreeRW(pRWops);
+
     if (pSurface == NULL)
     {
         LOG_ERROR(IMG_GetError());
@@ -160,7 +171,18 @@ Image* Image::CreatePngImage(char* rawBuffer, uint32_t size, SDL_Renderer* rende
 {
     Image* pImage = new Image();
     SDL_RWops* pRWops = SDL_RWFromMem((void*)rawBuffer, size);
+    if (pRWops == NULL)
+    {
+        LOG_ERROR(SDL_GetError());
+        delete pImage;
+        return NULL;
+    }
+
     SDL_Surface* pSurface = IMG_LoadPNG_RW(pRWops);
+    // IMG_LoadPNG_RW does not close its source (unlike IMG_Load_RW with freesrc = 1), so
+    // the RWops has to be released here on every path - it used to leak on all of them.
+    SDL_FreeRW(pRWops);
+
     if (pSurface == NULL)
     {
         LOG_ERROR(IMG_GetError());

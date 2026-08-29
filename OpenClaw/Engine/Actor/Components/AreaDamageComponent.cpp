@@ -74,7 +74,10 @@ bool AreaDamageComponent::VOnApply(Actor* pActorWhoPickedThis)
         SDL_Rect actorAABB = g_pApp->GetGameLogic()->VGetGamePhysics()->VGetAABB(pActorWhoPickedThis->GetGUID(), true);
 
         SDL_Rect impactRect;
-        Point contactPoint;
+        // Default to the centre of the victim. Otherwise a Direction_None hit (which is
+        // what ProjectileAIComponent::Detonate passes) or a failed intersection reported
+        // the impact at the world origin, spawning the hit spark at (0,0).
+        Point contactPoint(actorAABB.x + actorAABB.w / 2, actorAABB.y + actorAABB.h / 2);
         if (SDL_IntersectRect(&areaDamageAABB, &actorAABB, &impactRect))
         {
             //                      +----------------+

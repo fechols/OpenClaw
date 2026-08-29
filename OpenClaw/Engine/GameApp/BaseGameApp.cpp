@@ -969,6 +969,12 @@ bool BaseGameApp::ReadActorXmlPrototypes(GameOptions& gameOptions)
     if (!m_ActorXmlPrototypeMap.empty())
     {
         LOG_TRACE("Detected reload of actor prototypes !");
+        // The map owns these clones - Terminate() deletes them the same way. clear()
+        // alone leaked the entire prototype tree on every "reload actorprototypes".
+        for (auto &actorProto : m_ActorXmlPrototypeMap)
+        {
+            delete actorProto.second;
+        }
         m_ActorXmlPrototypeMap.clear();
     }
 
@@ -995,6 +1001,8 @@ bool BaseGameApp::ReadActorXmlPrototypes(GameOptions& gameOptions)
 
             auto iter = m_ActorXmlPrototypeMap.insert(std::make_pair(actorProto, pActorProtoElemDuplicate));
             if (!iter.second) {
+                // insert() did not take ownership, so this clone is ours to release.
+                delete pActorProtoElemDuplicate;
                 LOG_WARNING("Multi " + EnumToString_ActorPrototype(actorProto) + " actor prototype definitions! Fix ASSETS!");
                 std::string typeName;
                 if (ParseAttributeFromXmlElem(&typeName, "Type", pActorProtoElem))

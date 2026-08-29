@@ -38,7 +38,10 @@ void HealthComponent::VPostInit()
         m_IsController = true;
     }
 
-    BroadcastHealthChanged(0, m_CurrentHealth, DamageType_None, Point(0, 0), true);
+    // The signature is (oldHealth, newHealth, damageType, impactPoint, sourceActorId,
+    // isInitial). Passing "true" positionally set sourceActorId to 1 and left isInitial
+    // at its default of false - the exact opposite of the intent.
+    BroadcastHealthChanged(0, m_CurrentHealth, DamageType_None, Point(0, 0), 0, true);
 }
 
 TiXmlElement* HealthComponent::VGenerateXml()

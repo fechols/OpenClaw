@@ -209,18 +209,10 @@ void RopeComponent::VUpdate(uint32 msDiff)
 void RopeComponent::VOnAnimationFrameChanged(Animation* pAnimation, AnimationFrame* pLastFrame, AnimationFrame* pNewFrame)
 {
     Point newPosition = GetRopeEndFramePosition(m_pOwner->GetPositionComponent()->GetPosition(), pNewFrame->idx);
-    if (pNewFrame->idx > 60)
-    {
-        IEventMgr::Get()->VQueueEvent(IEventDataPtr(new EventData_Teleport_Actor(
-            m_pRopeEndTriggerActor->GetGUID(),
-            newPosition)));
-    }
-    else
-    {
-        IEventMgr::Get()->VQueueEvent(IEventDataPtr(new EventData_Teleport_Actor(
-            m_pRopeEndTriggerActor->GetGUID(),
-            newPosition)));
-    }
+    // Both arms of the old if/else here were byte-for-byte identical.
+    IEventMgr::Get()->VQueueEvent(IEventDataPtr(new EventData_Teleport_Actor(
+        m_pRopeEndTriggerActor->GetGUID(),
+        newPosition)));
 
     if (m_pAttachedActor != NULL)
     {

@@ -327,6 +327,14 @@ std::shared_ptr<ResourceHandle> ResourceCache::Load(Resource* r)
     {
         LOG_ERROR("Could not retrieve data buffer from resource: " + r->GetName() + 
             " in resource file: " + _resourceFile->VGetName());
+        // rawBuffer's only owner is this local; the VDiscardRawBufferAfterLoad branch
+        // further down is the only other place that frees it, and this return skips it.
+        // When it came from Allocate() the cache's accounting has to be unwound too.
+        if (loader->VUseRawFile())
+        {
+            MemoryHasBeenFreed(allocSize);
+        }
+        SAFE_DELETE_ARRAY(rawBuffer);
         return nullptr;
     }
 
@@ -347,6 +355,7 @@ std::shared_ptr<ResourceHandle> ResourceCache::Load(Resource* r)
         {
             LOG_ERROR("Could not allocate enough memory for resource: " + r->GetName() +
                 " in resource file: " + _resourceFile->VGetName());
+            SAFE_DELETE_ARRAY(rawBuffer);
             return shared_ptr<ResourceHandle>();
         }
          
@@ -380,7 +389,15 @@ std::shared_ptr<ResourceHandle> ResourceCache::Load(Resource* r)
 
 std::shared_ptr<ResourceHandle> ResourceCache::Find(Resource* r)
 {
-    return _resourceMap[r->GetName()];
+    // operator[] default-constructs and INSERTS on a miss, which permanently added a null
+    // entry per missing resource and desynchronised _resourceMap from _lruList.
+    auto findIt = _resourceMap.find(r->GetName());
+    if (findIt == _resourceMap.end())
+    {
+        return std::shared_ptr<ResourceHandle>();
+    }
+
+    return findIt->second;
 }
 
 void ResourceCache::Update(std::shared_ptr<ResourceHandle> handle)
@@ -522,7 +539,9 @@ int32 ResourceCache::Preload(const std::string pattern, void(*progressCallback)(
 
         if (progressCallback != NULL)
         {
-            progressCallback((fileIdx / numFiles) * 100, cancel);
+            // Integer division: (fileIdx / numFiles) is always 0 here, so this reported 0%
+        // for the whole preload. Multiply first.
+        progressCallback((fileIdx * 100) / numFiles, cancel);
         }
     }
 

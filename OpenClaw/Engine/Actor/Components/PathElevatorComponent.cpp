@@ -187,6 +187,11 @@ bool PathElevatorComponent::ShouldChangeDirection(const Point& newPosition)
 
 void PathElevatorComponent::AddCarriedBody(b2Body* pBody)
 {
+    m_CarriedBodiesList.push_back(pBody);
+}
+
+void PathElevatorComponent::RemoveCarriedBody(b2Body* pBody)
+{
     for (auto iter = m_CarriedBodiesList.begin(); iter != m_CarriedBodiesList.end(); ++iter)
     {
         if ((*iter) == pBody)
@@ -195,11 +200,6 @@ void PathElevatorComponent::AddCarriedBody(b2Body* pBody)
             return;
         }
     }
-}
-
-void PathElevatorComponent::RemoveCarriedBody(b2Body* pBody)
-{
-
 }
 
 void PathElevatorComponent::OnMoved(Point newPosition)

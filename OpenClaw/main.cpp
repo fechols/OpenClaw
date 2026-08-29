@@ -4,6 +4,9 @@
 #include "Engine/GameApp/MainLoop.h"
 #include "ClawGameApp.h"
 
+#include <cstdlib>
+#include <ctime>
+
 #ifdef ANDROID
 #include <jni.h>
 #endif
@@ -46,5 +49,9 @@ int main(int argc, char* argv[])
 //    _CrtSetReportFile( _CRT_ASSERT, _CRTDBG_FILE_STDOUT );
     _CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
 #endif
+    // Seed the global RNG exactly once, here. Gameplay code used to call srand()
+    // mid-game, which reseeded it for every other consumer.
+    srand((unsigned int)time(NULL));
+
     return RunGameEngine(argc, argv);
 }

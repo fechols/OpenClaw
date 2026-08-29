@@ -212,7 +212,9 @@ bool BaseRenderComponent::HasImage(int32 imageId)
 
 ActorRenderComponent::ActorRenderComponent()
     :
-    m_Alpha(255)
+    m_Alpha(255),
+    // Read by GetCurrentImage(); left indeterminate on the "no valid image" init path.
+    m_IsCachedImageExpired(true)
 {
     // Everything is visible by default, should be explicitly stated that its not visible
     m_IsVisible = true;

@@ -143,8 +143,10 @@ void DestroyableComponent::VOnHealthBelowZero(DamageType damageType, int sourceA
 
     if (!m_PossibleDestructionSounds.empty())
     {
-        // Pick random death sound
-        srand((long)this + (long)&m_PossibleDestructionSounds);
+        // Pick random death sound.
+        // The srand() that used to be here seeded from two addresses a fixed offset apart,
+        // so a given object always picked the SAME "random" sound - and it reseeded the
+        // global RNG as a side effect.
         int soundToPlayIdx = rand() % m_PossibleDestructionSounds.size();
 
         // And play it

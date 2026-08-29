@@ -9,6 +9,15 @@
 
 const char* AnimationComponent::g_Name = "AnimationComponent";
 
+// Maps an X position to a stable pseudo-random cycle delay in [0, 1000) ms. Deliberately
+// deterministic: pegs sharing an X are meant to share a phase.
+static uint32 PositionToCycleDelayMs(double posX)
+{
+    uint32 hash = (uint32)(int32)posX;
+    hash = (hash * 1103515245u) + 12345u;
+    return (hash >> 16) % 1000;
+}
+
 AnimationComponent::AnimationComponent()
     :
     _currentAnimation(nullptr),
@@ -157,8 +166,10 @@ void AnimationComponent::VPostInit()
             // This hack is specific to Toggle pegs which set their on delay
             if (cycleDuration != 75 && cycleDuration != 50 && cycleDuration != 99)
             {
-                srand(pPositionComponent->GetX());
-                pCycleAnim->SetDelay(rand() % 1000);
+                // Deterministic phase per X position, computed locally. This used to call
+                // srand(), which reseeds the process-global RNG that every other system
+                // draws from - so loading a level perturbed unrelated randomness.
+                pCycleAnim->SetDelay(PositionToCycleDelayMs(pPositionComponent->GetX()));
             }
 
             _animationMap.insert(std::make_pair(animType, pCycleAnim));
@@ -204,8 +215,10 @@ void AnimationComponent::VPostInit()
                     continue;
                 }
 
-                srand(pPositionComponent->GetX());
-                pCycleAnim->SetDelay(rand() % 1000);
+                // Deterministic phase per X position, computed locally. This used to call
+                // srand(), which reseeds the process-global RNG that every other system
+                // draws from - so loading a level perturbed unrelated randomness.
+                pCycleAnim->SetDelay(PositionToCycleDelayMs(pPositionComponent->GetX()));
             }
 
             _animationMap.insert(std::make_pair(specialAnim.type, pCycleAnim));

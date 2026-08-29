@@ -58,6 +58,12 @@ private:
     int m_MusicVolume;
     bool m_bSoundOn;
     bool m_bMusicOn;
+
+    // The currently playing music must stay alive for as long as SDL_mixer is playing it,
+    // so it is owned here and released when it is replaced or stopped. Only used on the
+    // non-Windows path; the Windows build plays MIDI through the RPC server instead.
+    Mix_Music* m_pCurrentMusic;
+    SDL_RWops* m_pCurrentMusicRWops;
 };
 
 #endif

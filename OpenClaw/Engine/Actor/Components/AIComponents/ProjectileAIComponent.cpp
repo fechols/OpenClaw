@@ -215,10 +215,13 @@ void ProjectileAIComponent::OnCollidedWithActor(Actor* pActorWhoWasShot)
     {
         OnCollidedWithSolidTile();
     }
+    // && binds tighter than ||, so without the outer parentheses this read as
+    // "(Explosion && (Enemy || Explodeable)) || IsClaw" - the trailing disjunct alone made
+    // every non-explosive projectile detonate on contact with Claw.
     else if (m_DamageType == DamageType_Explosion &&
              (MakeStrongPtr(pActorWhoWasShot->GetComponent<EnemyAIComponent>()) != nullptr ||
-              MakeStrongPtr(pActorWhoWasShot->GetComponent<ExplodeableComponent>()) != nullptr) ||
-              MakeStrongPtr(pActorWhoWasShot->GetComponent<ClawControllableComponent>()) != nullptr)
+              MakeStrongPtr(pActorWhoWasShot->GetComponent<ExplodeableComponent>()) != nullptr ||
+              MakeStrongPtr(pActorWhoWasShot->GetComponent<ClawControllableComponent>()) != nullptr))
     {
         OnCollidedWithSolidTile();
     }

@@ -10,7 +10,9 @@ PowerupProcess::PowerupProcess(int32 msDuration)
 // Override Process API
 void PowerupProcess::VOnUpdate(uint32 msDiff)
 {
-    int32 prevSecsLeft = m_MsTimeLeft % 1000;
+    // Seconds remaining, not milliseconds-within-the-second: with % this differed on
+    // nearly every frame instead of once per second.
+    int32 prevSecsLeft = m_MsTimeLeft / 1000;
 
     m_MsTimeLeft -= msDiff;
     if (m_MsTimeLeft <= 0)
@@ -19,7 +21,7 @@ void PowerupProcess::VOnUpdate(uint32 msDiff)
         return;
     }
 
-    int32 currSecsLeft = m_MsTimeLeft % 1000;
+    int32 currSecsLeft = m_MsTimeLeft / 1000;
     if (prevSecsLeft != currSecsLeft)
     {
         // Raise event to update stopwatch HUD

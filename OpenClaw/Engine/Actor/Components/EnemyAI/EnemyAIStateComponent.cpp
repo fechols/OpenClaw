@@ -575,15 +575,18 @@ void PatrolEnemyAIStateComponent::CalculatePatrolBorders()
     {
         LOG_WARNING("Did not find raycastResultLeft intersection for actor: " + m_pOwner->GetName() +
             " with position: " + m_pOwner->GetPositionComponent()->GetPosition().ToString());
-        // Dummy large value, should be sufficient
-        raycastResultLeft.deltaX = center.x - 10000;
+        // Dummy large value, should be sufficient.
+        // deltaX is a delta (ClawPhysics sets it as p2.x - p1.x) and is consumed below as
+        // "center.x + deltaX" - storing an absolute coordinate here produced nonsense
+        // borders that frequently collapsed and froze the enemy via m_IsAlwaysIdle.
+        raycastResultLeft.deltaX = -10000;
     }
     if (!raycastResultRight.foundIntersection)
     {
         LOG_WARNING("Did not find raycastResultRight intersection for actor: " + m_pOwner->GetName() +
             " with position: " + m_pOwner->GetPositionComponent()->GetPosition().ToString());
-        // Dummy large value, should be sufficient
-        raycastResultRight.deltaX = center.x + 10000;
+        // Dummy large value, should be sufficient. See the note above: this is a delta.
+        raycastResultRight.deltaX = 10000;
     }
 
     double patrolLeftBorder = 0.0;
@@ -1026,8 +1029,6 @@ void BaseAttackAIStateComponent::VExecuteAttack()
         m_pRenderComponent->SetMirrored(true);
     }
 
-    srand((long)this + time(NULL));
-
     // TODO: Pick randomly melee action ?
 
     m_pAnimationComponent->SetAnimation(m_AttackActions[m_CurrentAttackActionIdx]->animation);
@@ -1180,6 +1181,14 @@ bool BaseAttackAIStateComponent::VCanEnter()
 
     // TODO: Only Claw is the enemy at the moment, if the need to have more enemies arises, this needs to be changed
     // Since the first found actor is picked
+
+    // m_CurrentAttackActionIdx is incremented past the last element when the attack frame
+    // fires, and only reset when the animation loops or the state is entered/left. Both
+    // other users of this index guard for exactly that; this one did not.
+    if (m_AttackActions.empty() || (m_CurrentAttackActionIdx > (m_AttackActions.size() - 1)))
+    {
+        return false;
+    }
 
     // TODO: Revisit this if enemy ever has more than one attack action per AttackAIStateComponent
     EnemyAttackAction& action = *m_AttackActions[m_CurrentAttackActionIdx];
@@ -1531,8 +1540,16 @@ void DiveAttackAIStateComponent::VOnStateEnter(BaseEnemyAIStateComponent* pPrevi
     positionDiff.Set(abs(positionDiff.x), abs(positionDiff.y));
 
     // Y speed is preset - this is the diving speed.
-    // X speed is calculated so that the dive ends up in defined location
-    float xyDistanceRatio = positionDiff.x / positionDiff.y;
+    // X speed is calculated so that the dive ends up in defined location.
+    // Nothing constrains the vertical separation (VCanEnter only tests x), so the target
+    // can be exactly level with the diver - which would make this inf/NaN and push a
+    // non-finite velocity into Box2D.
+    float xyDistanceRatio = 0.0f;
+    if (positionDiff.y > DBL_EPSILON)
+    {
+        xyDistanceRatio = (float)(positionDiff.x / positionDiff.y);
+    }
+
     float xSpeed = xyDistanceRatio * m_DiveSpeed;
 
     if ((currentPosition.x - m_Destination.x) < 0)
@@ -1609,7 +1626,10 @@ void DiveAttackAIStateComponent::OnEnemyLeftAgroRange(Actor* pActor)
 
 BaseBossAIStateComponennt::BaseBossAIStateComponennt(std::string stateName)
     :
-    BaseEnemyAIStateComponent("BaseBossAIStateComponent"),
+    // Use the name the subclass passed in. Hardcoding one name registered every boss
+    // state under the same key, so a second boss state on an actor silently replaced the
+    // first in EnemyAIComponent::m_StateMap.
+    BaseEnemyAIStateComponent(stateName),
     m_bBossFightStarted(false)
 {
     IEventMgr::Get()->VAddListener(MakeDelegate(this, &BaseBossAIStateComponennt::ActorEnteredBossAreaDelegate), EventData_Entered_Boss_Area::sk_EventType);
