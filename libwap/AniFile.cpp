@@ -1,4 +1,5 @@
 #include <fstream>
+#include <memory>
 #include <stdint.h>
 #include <string.h>
 #include <string.h>
@@ -25,6 +26,11 @@ WapAni* WAP_AniLoadFromDataImpl(char* data, size_t size)
     // Set default values;
     (*wapAni) = { 0 };
 
+    // Own wapAni for the rest of the function: the reads below throw on malformed data,
+    // and without this the imageSetPath / animationFrames / per-frame event strings built
+    // so far all leaked.
+    std::unique_ptr<WapAni, void(*)(WapAni*)> wapAniGuard(wapAni, WAP_AniDestroy);
+
     InputStream aniFileStream(data, size);
     // Read first 32 bytes
     aniFileStream.read(wapAni->signature,
@@ -36,11 +42,13 @@ WapAni* WAP_AniLoadFromDataImpl(char* data, size_t size)
         wapAni->unk3,
         wapAni->unk4);
 
-    // Check if loaded file at leasr resembles ANI file format since there is no checksum
-    if ((wapAni->animationFramesCount == 0) ||
-        ((wapAni->animationFramesCount * 20 + wapAni->imageSetPathLength) > size))
+    // Check if loaded file at leasr resembles ANI file format since there is no checksum.
+    // Compute in 64 bits: animationFramesCount is an unvalidated uint32 from the file, so
+    // "count * 20" wraps and lets an absurd frame count sail through this sanity check.
+    const uint64_t minimumExpectedSize =
+        (uint64_t)wapAni->animationFramesCount * 20ull + (uint64_t)wapAni->imageSetPathLength;
+    if ((wapAni->animationFramesCount == 0) || (minimumExpectedSize > (uint64_t)size))
     {
-        delete wapAni;
         return NULL;
     }
 
@@ -49,7 +57,9 @@ WapAni* WAP_AniLoadFromDataImpl(char* data, size_t size)
 
     /********************** ANI ANIMATION FRAMES **********************/
 
-    wapAni->animationFrames = new AniAnimationFrame[wapAni->animationFramesCount];
+    // Value-initialize so that a throw part-way through the fill loop below still leaves
+    // every frame's eventFilePath in a state the destructor can safely walk.
+    wapAni->animationFrames = new AniAnimationFrame[wapAni->animationFramesCount]();
 
     // Load all animation frames, one by one
     for (i = 0; i < wapAni->animationFramesCount; i++)
@@ -77,7 +87,8 @@ WapAni* WAP_AniLoadFromDataImpl(char* data, size_t size)
         }
     }
 
-    return wapAni;
+    // Success - ownership passes to the caller.
+    return wapAniGuard.release();
 }
 
 WapAni* WAP_AniLoadFromData(char* data, size_t size)
@@ -154,10 +165,16 @@ void WAP_AniDestroy(WapAni* wapAni)
         return;
     }
 
-    // Delete animation frame's event path strings
-    for (i = 0; i < wapAni->animationFramesCount; i++)
+    // Delete animation frame's event path strings.
+    // animationFramesCount is set from the header before the frame array is allocated, and
+    // an aborted parse can leave the count set with the array still NULL - so the array
+    // itself has to be checked rather than trusting the count.
+    if (wapAni->animationFrames != NULL)
     {
-        delete[] wapAni->animationFrames[i].eventFilePath;
+        for (i = 0; i < wapAni->animationFramesCount; i++)
+        {
+            delete[] wapAni->animationFrames[i].eventFilePath;
+        }
     }
 
     delete[] wapAni->animationFrames;

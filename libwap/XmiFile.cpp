@@ -274,7 +274,6 @@ MidiFile* WAP_XmiToMidiFromData(char* xmiData, size_t xmiLength)
     bool bTempoSet = false;
     bool bEnd = false;
     uint8_t iTokenType, iExtendedType;
-    char* buf;
     char* data;
 
     while (!bufInput.isEOF() && !bEnd)
@@ -413,10 +412,11 @@ MidiFile* WAP_XmiToMidiFromData(char* xmiData, size_t xmiLength)
     bufOutput.seek(18);
     bufOutput.writeBigEndianUInt32(iLength);
 
-    buf = (char*)bufOutput.takeData(&midiLength);
-    data = (char *)malloc(midiLength * sizeof(char));
-    memcpy(data, buf, midiLength);
-    delete[] buf;
+    // takeData() hands over a buffer that was allocated with new[], which is exactly what
+    // WAP_MidiDestroy releases with delete[]. Adopt it directly instead of round-tripping
+    // it through a malloc'd copy - that copy was being freed with delete[], a mismatched
+    // deallocator on the normal path for every music track.
+    data = (char*)bufOutput.takeData(&midiLength);
 
     midiFile = new MidiFile;
     midiFile->data = data;

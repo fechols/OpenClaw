@@ -115,7 +115,7 @@ struct ZipFile::TZipDirFileHeader
 
 static bool IsZipDir(const std::string& node)
 {
-    return node.back() == '/';
+    return !node.empty() && node.back() == '/';
 }
 
 static char* string_to_lowercase(char* s)
@@ -165,7 +165,10 @@ bool ZipFile::Init(const std::string &resFileName)
         return false;
     memset(m_pDirData, 0, dh.dirSize + dh.nDirEntries*sizeof(*m_papDir));
     if (fread(m_pDirData, dh.dirSize, 1, m_pFile) != 1)
+    {
+        SAFE_DELETE_ARRAY(m_pDirData);
         return false;
+    }
 
     // Now process each entry.
     char *pfh = m_pDirData;
@@ -189,6 +192,16 @@ bool ZipFile::Init(const std::string &resFileName)
         else
         {
             pfh += sizeof(fh);
+
+            // fnameLen is a uint16 straight from the file, so it can be far larger
+            // than the destination buffer. Reject the archive rather than smashing the stack.
+            if (fh.fnameLen >= _MAX_PATH)
+            {
+                LOG_ERROR("Zip entry " + ToStr(i) + " has an oversized name (" +
+                    ToStr((uint32)fh.fnameLen) + " bytes) - archive is corrupted");
+                success = false;
+                break;
+            }
 
             char fileName[_MAX_PATH];
             memcpy(fileName, pfh, fh.fnameLen);
@@ -227,7 +240,11 @@ bool ZipFile::Init(const std::string &resFileName)
     }
     if (!success)
     {
+        // m_papDir points into m_pDirData, so it dangles once the buffer is gone.
         SAFE_DELETE_ARRAY(m_pDirData);
+        m_papDir = NULL;
+        m_ZipContentsMap.clear();
+        m_DirToFileListMap.clear();
     }
     else
     {
@@ -278,7 +295,9 @@ std::vector<std::string>  ZipFile::GetAllFilesInDirectory(const std::string& dir
 void ZipFile::End()
 {
     m_ZipContentsMap.clear();
+    m_DirToFileListMap.clear();
     SAFE_DELETE_ARRAY(m_pDirData);
+    m_papDir = NULL;
     m_nEntries = 0;
 }
 
@@ -292,9 +311,17 @@ std::string ZipFile::GetFilename(int i)  const
     std::string fileName = "";
     if (i >= 0 && i < m_nEntries)
     {
+        // Init() rejects entries whose name does not fit, but guard here too so a
+        // malformed directory can never overrun the buffer.
+        uint16 nameLen = m_papDir[i]->fnameLen;
+        if (nameLen >= _MAX_PATH)
+        {
+            return fileName;
+        }
+
         char pszDest[_MAX_PATH];
-        memcpy(pszDest, m_papDir[i]->GetName(), m_papDir[i]->fnameLen);
-        pszDest[m_papDir[i]->fnameLen] = '\0';
+        memcpy(pszDest, m_papDir[i]->GetName(), nameLen);
+        pszDest[nameLen] = '\0';
         fileName = pszDest;
 
         if (fileName.size() > 0 && fileName[0] != '/')
@@ -382,7 +409,6 @@ bool ZipFile::ReadFile(int i, void *pBuf)
     if (err == Z_OK)
     {
         err = inflate(&stream, Z_FINISH);
-        inflateEnd(&stream);
         if (err == Z_STREAM_END)
             err = Z_OK;
         inflateEnd(&stream);
@@ -448,8 +474,10 @@ bool ZipFile::ReadLargeFile(int i, void *pBuf, void(*progressCallback)(int, bool
 
     stream.next_in = (Bytef*)pcData.get();
     stream.avail_in = (uInt)h.cSize;
+    const uLong CHUNK_SIZE = 128 * 1024; // Inflate 128k at a time so progress can be reported
+
     stream.next_out = (Bytef*)pBuf;
-    stream.avail_out = (128 * 1024); //  read 128k at a time h.ucSize;
+    stream.avail_out = (uInt)((h.ucSize < CHUNK_SIZE) ? h.ucSize : CHUNK_SIZE);
     stream.zalloc = (alloc_func)0;
     stream.zfree = (free_func)0;
 
@@ -457,7 +485,6 @@ bool ZipFile::ReadLargeFile(int i, void *pBuf, void(*progressCallback)(int, bool
     err = inflateInit2(&stream, -MAX_WBITS);
     if (err == Z_OK)
     {
-        uInt count = 0;
         bool cancel = false;
         while (stream.total_in < (uInt)h.cSize && !cancel)
         {
@@ -473,10 +500,19 @@ bool ZipFile::ReadLargeFile(int i, void *pBuf, void(*progressCallback)(int, bool
                 break;
             }
 
-            stream.avail_out = (128 * 1024);
-            stream.next_out += stream.total_out;
+            // inflate() has already advanced next_out and drained avail_out by the
+            // number of bytes it wrote. Only top the output window back up - never
+            // move next_out by hand, and never open up more room than the caller's
+            // buffer actually has left.
+            if (stream.total_out >= h.ucSize)
+            {
+                break;
+            }
 
-            progressCallback(count * 100 / h.cSize, cancel);
+            uLong remaining = (uLong)h.ucSize - stream.total_out;
+            stream.avail_out = (uInt)((remaining < CHUNK_SIZE) ? remaining : CHUNK_SIZE);
+
+            progressCallback((int)((stream.total_out * 100) / h.ucSize), cancel);
         }
         inflateEnd(&stream);
     }

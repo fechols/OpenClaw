@@ -198,8 +198,9 @@ static RezDirectory* GetChildDirectory(RezDirectory* currentDirectory, std::stri
     uint32_t i;
     RezDirectory* searchedDirectory = NULL;
 
-    // Check validity
-    if (currentDirectory == NULL)
+    // Check validity. directoryContents is left NULL for empty directories, so it has to
+    // be checked here just as GetChildFile() does.
+    if ((currentDirectory == NULL) || (currentDirectory->directoryContents == NULL))
     {
         return NULL;
     }
@@ -491,15 +492,18 @@ static void ReadRezDirectory(RezArchive*& rezArchive, RezDirectory* rezDirectory
             // Move cursor to directory name's offset
             fileStream->seekg(currentOffset + 16, std::ios::beg);
             std::string directoryName("");
-            // Read directory name. Directory name is terminated by null character
+            // Read directory name. Directory name is terminated by null character.
+            // get() returns int: at EOF it returns EOF (-1), which narrows to '\xFF' and
+            // never compares equal to 0 - so this must test the int, or a truncated
+            // archive spins appending 0xFF until the process runs out of memory.
             while (true)
             {
-                char c = fileStream->get();
-                if (c == 0)
+                int c = fileStream->get();
+                if ((c == 0) || (c == EOF))
                 {
                     break;
                 }
-                directoryName += c;
+                directoryName += (char)c;
             }
             // Convert C++ string to char*
             newRezDirectory->name = StdStringToCharArray(directoryName);
@@ -529,23 +533,26 @@ static void ReadRezDirectory(RezArchive*& rezArchive, RezDirectory* rezDirectory
             FileRead(&(newRezFile->size), fileStream, currentOffset + 8);
             FileRead(&(newRezFile->dateAndTime), fileStream, currentOffset + 12);
             FileRead(&(newRezFile->fileId), fileStream, currentOffset + 16);
-            // Extension in reverse order
+            // Extension in reverse order. Only 4 bytes come from the archive; byte 5 is
+            // ours and is forced to NUL so strlen() below cannot run past the field.
             fileStream->read(newRezFile->extension, 4);
+            newRezFile->extension[4] = '\0';
             std::reverse(newRezFile->extension, newRezFile->extension + strlen(newRezFile->extension));
             // Unknown dummy value
             FileRead(&unk, fileStream, currentOffset + 24);
 
             fileStream->seekg(currentOffset + 28, std::ios::beg);
             std::string fileName("");
-            // Read file name. File name is terminated by null character
+            // Read file name. File name is terminated by null character.
+            // See the note above: get() must be read as an int so EOF terminates the loop.
             while (true)
             {
-                char c = fileStream->get();
-                if (c == 0)
+                int c = fileStream->get();
+                if ((c == 0) || (c == EOF))
                 {
                     break;
                 }
-                fileName += c;
+                fileName += (char)c;
             }
             // Bare file name
             newRezFile->name = StdStringToCharArray(fileName);
@@ -575,7 +582,7 @@ static void ReadRezDirectory(RezArchive*& rezArchive, RezDirectory* rezDirectory
     }
 
     // Allocate memory for loaded rez directories
-    rezDirectory->directoryContents->rezDirectoriesCount = loadedRezDirectories.size();
+    rezDirectory->directoryContents->rezDirectoriesCount = (uint32_t)loadedRezDirectories.size();
     rezDirectory->directoryContents->rezDirectories = new RezDirectory*[loadedRezDirectories.size()];
 
     // Store loaded rez directories
@@ -587,7 +594,7 @@ static void ReadRezDirectory(RezArchive*& rezArchive, RezDirectory* rezDirectory
     }
 
     // Allocate memory for loaded rez files
-    rezDirectory->directoryContents->rezFilesCount = loadedRezFiles.size();
+    rezDirectory->directoryContents->rezFilesCount = (uint32_t)loadedRezFiles.size();
     rezDirectory->directoryContents->rezFiles = new RezFile*[loadedRezFiles.size()];
 
     // Store loaded rez files
@@ -604,6 +611,9 @@ RezArchive* WAP_LoadRezArchive(const char* rezFilePath)
     std::ifstream* fileStream = new std::ifstream(rezFilePath, std::ifstream::binary);
     if (!fileStream->is_open())
     {
+        // Nothing has taken ownership of the stream yet - RegisterRezArchiveFile() only
+        // runs at the bottom of this function - so it has to be released here.
+        delete fileStream;
         return NULL;
     }
 
@@ -631,6 +641,9 @@ RezArchive* WAP_LoadRezArchive(const char* rezFilePath)
     if (expectedRezArchiveSize != actualLoadedFileSize)
     {
         WAP_DestroyRezArchive(rezArchive);
+        // The stream is still unregistered at this point, so WAP_DestroyRezArchive's
+        // unregister step frees nothing - close and release it here.
+        delete fileStream;
         return NULL;
     }
 

@@ -1,6 +1,7 @@
 #include <vector>
 #include <fstream>
 #include <algorithm>
+#include <memory>
 #include <string.h>
 #include <stdint.h>
 #include <string.h>
@@ -12,6 +13,11 @@
 #include "Util.h"
 
 const uint32_t EXPECTED_HEADER_SIZE = 1524;
+
+// Upper bound on the inflated main block. planesOffset and mainBlockLength are read from
+// the file, so their sum has to be range-checked before it sizes an allocation. Generous
+// next to any real Claw level, small enough that a corrupt header cannot request gigabytes.
+static const uint64_t WAP_WWD_MAX_MAIN_BLOCK_SIZE = 256ull * 1024ull * 1024ull;
 
 static void ReadRect(InputStream &stream, WwdRect &rect) 
 {
@@ -45,7 +51,9 @@ static void ReadPlaneImageSets(WwdPlane* plane, InputStream& inputStream)
     if (plane->imageSetsCount > 0)
     {
         // Allocate space for plane's image sets
-        plane->imageSets = new char*[plane->imageSetsCount];
+        // Value-initialize: the fill loop below can throw part-way through, and the
+        // destructor walks the whole array.
+        plane->imageSets = new char*[plane->imageSetsCount]();
 
         // Move cursor to plane's image sets beginning
         inputStream.seek(plane->properties.imageSetsOffset);
@@ -65,7 +73,7 @@ static void ReadPlaneObjects(WwdPlane* plane, InputStream& inputStream)
     if (plane->objectsCount > 0)
     {
         // Allocate space for plane's objects
-        plane->objects = new WwdObject[plane->objectsCount];
+        plane->objects = new WwdObject[plane->objectsCount]();
 
         // move cursor to plane's objects beginning
         inputStream.seek(plane->properties.objectsOffset);
@@ -142,7 +150,7 @@ static void ReadPlanes(WapWwd* wapWwd, InputStream& inputStream)
     uint32_t i;
 
     // Allocate space for WWD planes
-    wapWwd->planes = new WwdPlane[wapWwd->planesCount];
+    wapWwd->planes = new WwdPlane[wapWwd->planesCount]();
 
     // Move cursor to WWD planes beginning
     inputStream.seek(wapWwd->properties.planesOffset);
@@ -216,7 +224,7 @@ void ReadTileDescriptions(WapWwd* wapWwd, InputStream& inputStream)
     inputStream.read(32, 0, wapWwd->tileDescriptionsCount, 0, 0, 0, 0, 0);
 
     // Allocate space for WWD tile descriptions
-    wapWwd->tileDescriptions = new WwdTileDescription[wapWwd->tileDescriptionsCount];
+    wapWwd->tileDescriptions = new WwdTileDescription[wapWwd->tileDescriptionsCount]();
 
     for (i = 0; i < wapWwd->tileDescriptionsCount; i++)
     {
@@ -255,13 +263,17 @@ WapWwd* WAP_TryWwdLoadFromImpl(char* data, uint32_t length)
     // Set default values
     (*wapWwd) = { 0 };
 
+    // Own wapWwd for the rest of the function. ReadPlanes/ReadTileDescriptions below read
+    // straight from the file and throw on malformed data; without this the whole
+    // partially-built world (planes, objects, per-object strings) leaked on every throw.
+    std::unique_ptr<WapWwd, void(*)(WapWwd*)> wapWwdGuard(wapWwd, WAP_WwdDestroy);
+
     InputStream wwdFileStream(data, length);
     wwdFileStream.read(wapWwd->properties.wwdSignature);
     // Signature holds WWD header size, if size doesnt match then it is not
     // supported WWD file
     if (wapWwd->properties.wwdSignature != EXPECTED_HEADER_SIZE)
     {
-        delete wapWwd;
         return NULL;
     }
 
@@ -296,24 +308,44 @@ WapWwd* WAP_TryWwdLoadFromImpl(char* data, uint32_t length)
     // Data duplication for sanity reasons
     wapWwd->planesCount = wapWwd->properties.numPlanes;
 
+    // planesOffset and mainBlockLength come straight from the file. Validate them before
+    // they are used for pointer arithmetic and allocation sizes: an offset past the end of
+    // the buffer makes the size subtraction below underflow into a huge length, and the
+    // uint32 + uint32 sum for the output vector can wrap and under-size the allocation.
+    if (wapWwd->properties.planesOffset > length)
+    {
+        return NULL;
+    }
+
+    const uint64_t totalBlockLength =
+        (uint64_t)wapWwd->properties.planesOffset + (uint64_t)wapWwd->properties.mainBlockLength;
+    if (totalBlockLength > WAP_WWD_MAX_MAIN_BLOCK_SIZE)
+    {
+        return NULL;
+    }
+
     // Compressed WWD file payload info
     const char* compressedMainBlock = data + wapWwd->properties.planesOffset;
     size_t compressedMainBlockSize = length - wapWwd->properties.planesOffset;
 
     // Uncompressed WWD file payload info
-    std::vector<char> decompressedMainBlockVector(wapWwd->properties.planesOffset + wapWwd->properties.mainBlockLength);
+    std::vector<char> decompressedMainBlockVector((size_t)totalBlockLength);
     memcpy(decompressedMainBlockVector.data(), data, wapWwd->properties.planesOffset);
     char* decompressedMainBlock = decompressedMainBlockVector.data() + wapWwd->properties.planesOffset;
 
-    // Inflate compressed WWD file payload
-    int32_t ret = uncompress((Bytef*)decompressedMainBlock, (uLong*)(&(wapWwd->properties.mainBlockLength)),
+    // Inflate compressed WWD file payload.
+    // uncompress() writes the produced length back through a uLong*, which is 8 bytes on
+    // 64-bit POSIX while mainBlockLength is a uint32 - passing its address directly would
+    // scribble over the adjacent field. Round-trip through a correctly typed local.
+    uLong decompressedLength = (uLong)wapWwd->properties.mainBlockLength;
+    int32_t ret = uncompress((Bytef*)decompressedMainBlock, &decompressedLength,
         (Bytef*)compressedMainBlock, compressedMainBlockSize);
     // Check if inflation succeeded, if not, free allocated resources and return NULL
     if (ret != Z_OK)
     {
-        delete wapWwd;
         return NULL;
     }
+    wapWwd->properties.mainBlockLength = (uint32_t)decompressedLength;
 
     // Create new file stream from inflated WWD file payload
     InputStream wwdFileStreamInflated(decompressedMainBlockVector.data(), decompressedMainBlockVector.size());
@@ -332,7 +364,8 @@ WapWwd* WAP_TryWwdLoadFromImpl(char* data, uint32_t length)
 
     /*******************************************************************/
 
-    return wapWwd;
+    // Success - ownership passes to the caller.
+    return wapWwdGuard.release();
 }
 
 WapWwd* WAP_WwdLoadFromData(char* data, uint32_t length)
@@ -456,32 +489,44 @@ void WAP_WwdDestroy(WapWwd* wapWwd)
         return;
     }
 
-    // Delete planes
-    for (i = 0; i < wapWwd->planesCount; i++)
+    // Delete planes.
+    // planesCount is set from the header before the planes array is allocated, and the
+    // parse can be abandoned part-way through by an exception, so nothing here may assume
+    // that a non-zero count implies a populated array.
+    if (wapWwd->planes != NULL)
     {
-        uint32_t j;
-
-        // Delete plane's image sets
-        for (j = 0; j < wapWwd->planes[i].imageSetsCount; j++)
+        for (i = 0; i < wapWwd->planesCount; i++)
         {
-            delete[] wapWwd->planes[i].imageSets[j];
+            uint32_t j;
+
+            // Delete plane's image sets
+            if (wapWwd->planes[i].imageSets != NULL)
+            {
+                for (j = 0; j < wapWwd->planes[i].imageSetsCount; j++)
+                {
+                    delete[] wapWwd->planes[i].imageSets[j];
+                }
+                delete[] wapWwd->planes[i].imageSets;
+            }
+
+            // Delete plane's tiles
+            delete[] wapWwd->planes[i].tiles;
+
+            // Delete plane's object names
+            if (wapWwd->planes[i].objects != NULL)
+            {
+                for (j = 0; j < wapWwd->planes[i].objectsCount; j++)
+                {
+                    delete[] wapWwd->planes[i].objects[j].name;
+                    delete[] wapWwd->planes[i].objects[j].logic;
+                    delete[] wapWwd->planes[i].objects[j].imageSet;
+                    delete[] wapWwd->planes[i].objects[j].sound;
+                }
+
+                // Delete plane's objects
+                delete[] wapWwd->planes[i].objects;
+            }
         }
-        delete[] wapWwd->planes[i].imageSets;
-
-        // Delete plane's tiles
-        delete[] wapWwd->planes[i].tiles;
-
-        // Delete plane's object names
-        for (j = 0; j < wapWwd->planes[i].objectsCount; j++)
-        {
-            delete[] wapWwd->planes[i].objects[j].name;
-            delete[] wapWwd->planes[i].objects[j].logic;
-            delete[] wapWwd->planes[i].objects[j].imageSet;
-            delete[] wapWwd->planes[i].objects[j].sound;
-        }
-
-        // Delete plane's objects
-        delete[] wapWwd->planes[i].objects;
     }
     // Delete planes itselves
     delete[] wapWwd->planes;

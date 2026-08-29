@@ -73,7 +73,7 @@ private:
     template <typename T>
     void read_write_impl(T &val)
     {
-        if (m_offset > m_buffer_size - sizeof(T))
+        if (sizeof(T) > m_buffer_size || m_offset > m_buffer_size - sizeof(T))
         {
             throw std::runtime_error("Error: Invalid data\n");
         }

@@ -33,7 +33,10 @@ typedef struct
 {
     char* fullPathAndName;
     char* name;
-    char extension[4];
+    // 4 extension bytes are read from the archive, plus a guaranteed NUL terminator -
+    // this is consumed as a C string (strlen/ToLower/concatenation), so it must not
+    // rely on the archive happening to supply a terminator within the 4 bytes.
+    char extension[5];
     uint32_t size;
     uint32_t offset;
     uint32_t dateAndTime;
@@ -58,11 +61,14 @@ typedef struct RezDirectory
 
 typedef struct RezDirectoryContents
 {
+    // These counts are assigned from the number of entries actually loaded, which is a
+    // size_t. As uint16_t they silently truncated above 65535 entries while the arrays
+    // were still allocated at full size, leaking the tail and making it unreachable.
     RezDirectory** rezDirectories;
-    uint16_t rezDirectoriesCount;
+    uint32_t rezDirectoriesCount;
 
     RezFile** rezFiles;
-    uint16_t rezFilesCount;
+    uint32_t rezFilesCount;
 } RezDirectoryContents;
 
 typedef struct RezArchive
