@@ -255,6 +255,14 @@ void ClawPhysics::VSyncVisibleScene()
             if (pActorBody->GetType() == b2_dynamicBody)
             {
                 shared_ptr<PhysicsComponent> pPhysicsComponent = GetPhysicsComponentFromB2Body(pActorBody);
+                if (!pPhysicsComponent)
+                {
+                    // The helper returns null by design when the body has no user data,
+                    // which VRemoveActor sets explicitly. Its internal assert is a no-op
+                    // in release builds.
+                    continue;
+                }
+
                 bool wasFalling = pPhysicsComponent->IsFalling();
                 bool wasJumping = pPhysicsComponent->IsJumping();
                 // Set jumping / falling properties

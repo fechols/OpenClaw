@@ -274,6 +274,14 @@ bool ActorRenderComponent::VDelegateInit(TiXmlElement* pXmlData)
         m_IsCachedImageExpired = false;
     }
 
+    // Nothing below has anything to normalize without images, and begin() on an empty map
+    // is not dereferenceable. The visible path above returns early, but the invisible one
+    // only warns and falls through to here.
+    if (m_ImageMap.empty())
+    {
+        return true;
+    }
+
     // Hacky. Rebuild image names which dont have "frame" in it after initialization
     if (m_ImageMap.begin()->first.find("frame") == std::string::npos)
     {

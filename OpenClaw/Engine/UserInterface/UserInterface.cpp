@@ -124,9 +124,16 @@ static shared_ptr<Image> TryLoadPcxImageFromXmlElement(TiXmlElement* pElem)
         return nullptr;
     }
 
-    std::string imagePath = pElem->GetText();
-    // This should not happen
-    assert(!imagePath.empty());
+    // GetText() returns NULL (not "") for an element with no text child, and constructing
+    // a std::string from a null char* is undefined behaviour - so check before converting.
+    const char* pImagePathText = pElem->GetText();
+    assert(pImagePathText != NULL);
+    if (pImagePathText == NULL)
+    {
+        return nullptr;
+    }
+
+    std::string imagePath = pImagePathText;
 
     return PcxResourceLoader::LoadAndReturnImage(imagePath.c_str(), true, { 0, 0, 0, 0 });
 }
@@ -138,7 +145,13 @@ static shared_ptr<Image> LoadImageFromXmlElement(TiXmlElement* pElem)
         return nullptr;
     }
 
-    std::string imagePath = pElem->GetText();
+    const char* pImagePathText = pElem->GetText();
+    if (pImagePathText == NULL)
+    {
+        return nullptr;
+    }
+
+    std::string imagePath = pImagePathText;
     // Length has to be atleast 5: A.BCD - one char for name, dot and 3 chars extension
     if (imagePath.length() <= 5)
     {

@@ -81,7 +81,9 @@ void SplitStringIntoVector(std::string str, std::vector<std::string>& vec)
         vec.push_back(str);
     }
 
-    if (str.back() == ' ')
+    // _currentCommandText is empty on a fresh console and after every committed command,
+    // and back() on an empty string is undefined - pressing TAB there used to be UB.
+    if (!str.empty() && str.back() == ' ')
     {
         vec.push_back(std::string(""));
     }

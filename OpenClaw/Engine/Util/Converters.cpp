@@ -6,6 +6,14 @@ void FixupWwdObject(WwdObject* pObj, int levelNumber);
 TiXmlElement* WwdToXml(WapWwd* wapWwd, int levelNumber)
 {
     PROFILE_CPU("WWD->XML");
+
+    // The caller only asserts on this, which is a no-op in release builds.
+    if (wapWwd == NULL)
+    {
+        LOG_ERROR("Cannot convert a null WWD to XML");
+        return NULL;
+    }
+
     TiXmlDocument xmlDoc;
 
     //----- [Level]
@@ -178,8 +186,17 @@ TiXmlElement* WwdToXml(WapWwd* wapWwd, int levelNumber)
         }
     }
 
-    // There has to be a main plane in the game
+    // There has to be a main plane in the game.
+    // The assert vanishes in release builds, and planes[-1] then reads whatever sits
+    // before the array - including a garbage objects pointer that the loop below walks.
     assert(mainPlaneIdx != -1);
+    if (mainPlaneIdx == -1)
+    {
+        LOG_ERROR("WWD has no main plane - cannot convert level to XML");
+        // root owns every element linked into it so far.
+        delete root;
+        return NULL;
+    }
 
     //---- [Level::Actors]
     TiXmlElement* actorsElem = new TiXmlElement("Actors");

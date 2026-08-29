@@ -416,10 +416,16 @@ void BaseGameApp::SetWindowSize(int width, int height, double scale)
 
     SetScale(newScale);
 
-    GetHumanView()->GetCamera()->SetSize(width, height);
+    // GetHumanView() returns NULL when no human view exists yet, which is reachable from
+    // the "winresize" console command.
+    HumanView* pHumanView = GetHumanView();
+    if (pHumanView && pHumanView->GetCamera())
+    {
+        pHumanView->GetCamera()->SetSize(width, height);
 
-    //if (scale)
-    GetHumanView()->GetCamera()->SetScale(1, 1);
+        //if (scale)
+        pHumanView->GetCamera()->SetScale(1, 1);
+    }
 }
 
 HumanView* BaseGameApp::GetHumanView() const

@@ -121,6 +121,12 @@ ValueType GetValueFromMap(KeyType _key, const std::map<KeyType, ValueType>& _map
 {
     auto findIt = _map.find(_key);
     assert(findIt != _map.end() && "Failed to locate value from map");
+    if (findIt == _map.end())
+    {
+        // The assert above is compiled out in release builds, and dereferencing end()
+        // is undefined. Keys can come from save data, so a miss is reachable.
+        return ValueType();
+    }
 
     return findIt->second;
 }

@@ -40,6 +40,14 @@ bool AnimationComponent::VInit(TiXmlElement* data)
         for (std::string& animPath : matchingAnimNames)
         {
             WapAni* wapAni = AniResourceLoader::LoadAndReturnAni(animPath.c_str());
+            if (wapAni == NULL)
+            {
+                // Animation::Initialize dereferences this immediately, so a corrupt or
+                // missing .ANI would crash the level load rather than skipping the anim.
+                LOG_ERROR("Could not load animation: " + animPath);
+                return false;
+            }
+
             std::string animNameKey = StripPathAndExtension(animPath);
 
             // Check if we dont already have the animation loaded
@@ -215,7 +223,9 @@ void AnimationComponent::VPostInit()
         _currentAnimation = _animationMap.begin()->second;
     }
 
-    if (m_PauseOnStart)
+    // _animationMap can legitimately be empty (an AnimationPath glob that matched
+    // nothing), which leaves _currentAnimation null - VUpdate already guards for this.
+    if (m_PauseOnStart && _currentAnimation)
     {
         _currentAnimation->Pause();
     }
@@ -240,7 +250,7 @@ void AnimationComponent::VUpdate(uint32 msDiff)
 
 bool AnimationComponent::SetAnimation(const std::string& animationName)
 {
-    if (animationName == _currentAnimation->GetName())
+    if (_currentAnimation && animationName == _currentAnimation->GetName())
     {
         //LOG("Trying to set the same animation: " + animationName);
         return true;
@@ -286,19 +296,32 @@ bool AnimationComponent::HasAnimation(std::string& animName)
 
 void AnimationComponent::PauseAnimation()
 {
+    if (!_currentAnimation)
+    {
+        return;
+    }
+
     _currentAnimation->Pause();
     NotifyAnimationPaused(_currentAnimation.get());
 }
 
 void AnimationComponent::ResumeAnimation()
 {
+    if (!_currentAnimation)
+    {
+        return;
+    }
+
     _currentAnimation->Resume();
     NotifyAnimationResumed(_currentAnimation.get());
 }
 
 void AnimationComponent::ResetAnimation()
 {
-    _currentAnimation->Reset();
+    if (_currentAnimation)
+    {
+        _currentAnimation->Reset();
+    }
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -359,12 +382,18 @@ void AnimationComponent::OnAnimationAtLastFrame()
 
 void AnimationComponent::SetDelay(uint32 msDelay)
 {
-    _currentAnimation->SetDelay(msDelay);
+    if (_currentAnimation)
+    {
+        _currentAnimation->SetDelay(msDelay);
+    }
 }
 
 void AnimationComponent::SetReverseAnimation(bool reverse)
 {
-    _currentAnimation->SetReverseAnim(reverse);
+    if (_currentAnimation)
+    {
+        _currentAnimation->SetReverseAnim(reverse);
+    }
 }
 
 bool AnimationComponent::AddAnimation(const std::string &animName, std::shared_ptr<Animation> &pAnim)

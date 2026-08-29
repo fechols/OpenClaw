@@ -22,7 +22,12 @@ TriggerComponent::TriggerComponent()
 
 TriggerComponent::~TriggerComponent()
 {
-    m_pPhysics->VRemoveActor(m_pOwner->GetGUID());
+    // Same as PhysicsComponent: a failed VInit leaves m_pPhysics null and m_pOwner unset,
+    // and the component is still destroyed.
+    if (m_pPhysics && m_pOwner)
+    {
+        m_pPhysics->VRemoveActor(m_pOwner->GetGUID());
+    }
 }
 
 bool TriggerComponent::VInit(TiXmlElement* data)

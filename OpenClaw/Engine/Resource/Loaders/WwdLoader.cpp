@@ -52,6 +52,13 @@ WapWwd* WwdResourceLoader::LoadAndReturnWwd(const char* resourceString)
     Resource resource(resourceString);
 
     shared_ptr<ResourceHandle> wwdHandle = g_pApp->GetResourceCache()->GetHandle(&resource);
+    if (!wwdHandle)
+    {
+        // ResourceCache::Load returns null when the resource cannot be found or read.
+        LOG_ERROR("Could not get resource handle for: " + std::string(resourceString));
+        return NULL;
+    }
+
     shared_ptr<WwdResourceExtraData> extraData = std::static_pointer_cast<WwdResourceExtraData>(wwdHandle->GetExtraData());
 
     if (!extraData)

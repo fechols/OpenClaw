@@ -481,6 +481,12 @@ void ClawGameLogic::UpdatedPowerupStatusDelegate(IEventDataPtr pEventData)
     {
         // Clear invulnerability
         pHealthComponent->SetInvulnerable(false);
+    }
+    if (pARC)
+    {
+        // Guarded by pARC, not pHealthComponent - an actor can have health without an
+        // ActorRenderComponent (a HUD-rendered actor, or a boss whose render component
+        // was already torn down when the powerup expired).
         pARC->SetColorMod(COLOR_WHITE);
     }
 

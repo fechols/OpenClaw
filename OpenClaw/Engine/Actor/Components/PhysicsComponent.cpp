@@ -49,7 +49,13 @@ PhysicsComponent::PhysicsComponent() :
 
 PhysicsComponent::~PhysicsComponent()
 {
-    m_pPhysics->VRemoveActor(m_pOwner->GetGUID());
+    // VInit returns false when physics is unavailable, and ActorFactory then drops the
+    // component - which runs this destructor with m_pPhysics still null and m_pOwner
+    // never set, since SetOwner only happens after a successful create.
+    if (m_pPhysics && m_pOwner)
+    {
+        m_pPhysics->VRemoveActor(m_pOwner->GetGUID());
+    }
 }
 
 bool PhysicsComponent::VInit(TiXmlElement* data)

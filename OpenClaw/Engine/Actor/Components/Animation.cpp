@@ -58,6 +58,13 @@ std::shared_ptr<Animation> Animation::CreateAnimation(int numAnimFrames, int ani
 
 bool Animation::Initialize(WapAni* wapAni, const char* animationName, const char* resourcePath, AnimationComponent* owner)
 {
+    if (wapAni == NULL)
+    {
+        LOG_ERROR("Cannot initialize animation \"" + std::string(animationName ? animationName : "") +
+            "\" from a null WapAni (resource: " + std::string(resourcePath ? resourcePath : "") + ")");
+        return false;
+    }
+
     _name = animationName;
     m_pOwner = owner;
 

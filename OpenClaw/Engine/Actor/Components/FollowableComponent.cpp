@@ -19,14 +19,20 @@ FollowableComponent::FollowableComponent() :
     m_pPositionComponent(NULL),
     m_pTargetPositionComponent(NULL),
     m_pTargetRenderComponent(NULL),
+    m_pFollowingActor(NULL),
     m_MsDuration(0),
     m_CurrentMsDuration(0)
 { }
 
 FollowableComponent::~FollowableComponent()
 {
-    shared_ptr<EventData_Destroy_Actor> pEvent(new EventData_Destroy_Actor(m_pFollowingActor->GetGUID()));
-    IEventMgr::Get()->VQueueEvent(pEvent);
+    // m_pFollowingActor is only assigned in VPostInit, which never runs if actor creation
+    // is abandoned earlier (a later component failing VInit tears the actor back down).
+    if (m_pFollowingActor)
+    {
+        shared_ptr<EventData_Destroy_Actor> pEvent(new EventData_Destroy_Actor(m_pFollowingActor->GetGUID()));
+        IEventMgr::Get()->VQueueEvent(pEvent);
+    }
 }
 
 bool FollowableComponent::VInit(TiXmlElement* pData)

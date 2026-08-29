@@ -61,8 +61,26 @@ uint32 WavResourceLoader::VGetLoadedResourceSize(char* rawBuffer, uint32 rawSize
 {
     // TODO: This is inefficent, this resource gets basically loaded twice, once just
     // to find out how much room it takes and second time to actually create it
+    if (rawBuffer == NULL || rawSize == 0)
+    {
+        return 0;
+    }
+
     SDL_RWops* soundRwOps = SDL_RWFromMem((void*)rawBuffer, rawSize);
+    if (soundRwOps == NULL)
+    {
+        return 0;
+    }
+
+    // Mix_LoadWAV_RW returns NULL for anything it cannot decode. This runs over every wav
+    // in CLAW.REZ during the startup preload, so one bad file used to be a hard crash.
     auto pSound = shared_ptr<Mix_Chunk>(Mix_LoadWAV_RW(soundRwOps, 1), DeleteMixChunk);
+    if (!pSound)
+    {
+        LOG_ERROR("Failed to decode wav sound: " + std::string(Mix_GetError()));
+        return 0;
+    }
+
     return pSound->alen;
 }
 
@@ -71,6 +89,13 @@ shared_ptr<Mix_Chunk> WavResourceLoader::LoadAndReturnSound(const char* resource
     Resource resource(resourceString);
 
     shared_ptr<ResourceHandle> handle = g_pApp->GetResourceCache()->GetHandle(&resource);
+    if (!handle)
+    {
+        // ResourceCache::Load returns null when the resource cannot be found or read.
+        LOG_ERROR("Could not get resource handle for: " + std::string(resourceString));
+        return NULL;
+    }
+
     shared_ptr<WavResourceExtraData> extraData = std::static_pointer_cast<WavResourceExtraData>(handle->GetExtraData());
 
     if (!extraData)

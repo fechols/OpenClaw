@@ -160,6 +160,14 @@ bool MemoryPool::GrowMemoryArray(void)
     // allocate a new block of memory
     ppNewMemArray[m_memArraySize] = AllocateNewMemoryBlock();  // indexing m_memArraySize here is safe because we haven't incremented it yet to reflect the new size    
 
+    // AllocateNewMemoryBlock() returns NULL when malloc fails. Reporting success here
+    // would leave m_pHead NULL and send Alloc() straight into GetNext(NULL).
+    if (!ppNewMemArray[m_memArraySize])
+    {
+        free(ppNewMemArray);
+        return false;
+    }
+
     // attach the block to the end of the current memory list
     if (m_pHead)
     {

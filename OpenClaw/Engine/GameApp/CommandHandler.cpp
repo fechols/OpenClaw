@@ -58,6 +58,47 @@ bool CommandHandler::AddPowerup(PowerupType type, int duration, bool& executed, 
     return true;
 }
 
+// std::stoi / std::stod throw on input that isn't a number, and console arguments are
+// arbitrary user text - an unparseable argument such as "teleport a b" used to terminate
+// the process. These report failure instead.
+static bool TryParseInt(const std::string& str, int& outValue)
+{
+    try
+    {
+        size_t charsUsed = 0;
+        int parsed = std::stoi(str, &charsUsed);
+        if (charsUsed != str.length())
+        {
+            return false;
+        }
+        outValue = parsed;
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
+static bool TryParseDouble(const std::string& str, double& outValue)
+{
+    try
+    {
+        size_t charsUsed = 0;
+        double parsed = std::stod(str, &charsUsed);
+        if (charsUsed != str.length())
+        {
+            return false;
+        }
+        outValue = parsed;
+        return true;
+    }
+    catch (...)
+    {
+        return false;
+    }
+}
+
 void CommandHandler::HandleCommand(const char* command, void* userdata)
 {
     Console* pConsole = static_cast<Console*>(userdata);
@@ -146,8 +187,13 @@ void CommandHandler::HandleCommand(const char* command, void* userdata)
     {
         if (commandArgs.size() == 3)
         {
-            int x = std::stoi(commandArgs[1]);
-            int y = std::stoi(commandArgs[2]);
+            int x = 0;
+            int y = 0;
+            if (!TryParseInt(commandArgs[1], x) || !TryParseInt(commandArgs[2], y))
+            {
+                pConsole->AddLine("Usage: teleport <x> <y> (both must be whole numbers)", COLOR_RED);
+                return;
+            }
 
             if (StrongActorPtr pClaw = g_pApp->GetGameLogic()->GetClawActor())
             {
@@ -171,7 +217,14 @@ void CommandHandler::HandleCommand(const char* command, void* userdata)
 
     if (commandStr.find("cpudelay ") != std::string::npos && commandArgs.size() == 2)
     {
-        g_pApp->m_DebugOptions.cpuDelayMs = std::stoi(commandArgs[1]);
+        int cpuDelayMs = 0;
+        if (!TryParseInt(commandArgs[1], cpuDelayMs))
+        {
+            pConsole->AddLine("Usage: cpudelay <milliseconds>", COLOR_RED);
+            return;
+        }
+
+        g_pApp->m_DebugOptions.cpuDelayMs = cpuDelayMs;
         wasCommandExecuted = true;
     }
 
@@ -194,7 +247,18 @@ void CommandHandler::HandleCommand(const char* command, void* userdata)
 
     if (commandStr.find("winresize ") != std::string::npos && commandArgs.size() == 4)
     {
-        g_pApp->SetWindowSize(std::stoi(commandArgs[1]), std::stoi(commandArgs[2]), std::stod(commandArgs[3]));
+        int width = 0;
+        int height = 0;
+        double scale = 0.0;
+        if (!TryParseInt(commandArgs[1], width) ||
+            !TryParseInt(commandArgs[2], height) ||
+            !TryParseDouble(commandArgs[3], scale))
+        {
+            pConsole->AddLine("Usage: winresize <width> <height> <scale>", COLOR_RED);
+            return;
+        }
+
+        g_pApp->SetWindowSize(width, height, scale);
         wasCommandExecuted = true;
     }
 

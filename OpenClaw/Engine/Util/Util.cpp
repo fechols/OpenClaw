@@ -52,7 +52,7 @@ namespace Util
             vec.push_back(str);
         }
 
-        if (str.back() == ' ')
+        if (!str.empty() && str.back() == ' ')
         {
             vec.push_back(std::string(""));
         }
@@ -427,6 +427,12 @@ namespace Util
     {
         shared_ptr<Mix_Chunk> pSound = WavResourceLoader::LoadAndReturnSound(soundPath.c_str());
         assert(pSound != nullptr);
+        if (pSound == nullptr)
+        {
+            LOG_ERROR("Could not load sound to measure its duration: " + soundPath);
+            return -1;
+        }
+
         return GetSoundDurationMs(pSound.get());
     }
 
@@ -444,9 +450,16 @@ namespace Util
             return -1;
         }
 
+        if (pSound == NULL || channels == 0 || frequency == 0)
+        {
+            return -1;
+        }
+
         points = (pSound->alen / ((format & 0xFF) / 8));
         frames = points / channels;
-        return ((frames * 1000) / frequency);
+        // 64-bit intermediate: frames * 1000 overflows a uint32 past roughly 97 seconds
+        // of 44.1kHz audio.
+        return (int)(((uint64_t)frames * 1000ull) / (uint64_t)frequency);
     }
 #else
     int GetSoundDurationMs(Mix_Chunk* pSound)

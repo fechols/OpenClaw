@@ -273,6 +273,11 @@ void EnemyAIComponent::EnterState(EnemyAIState state)
 void EnemyAIComponent::EnterState(BaseEnemyAIStateComponent* pState)
 {
     assert(pState != NULL);
+    if (pState == NULL)
+    {
+        return;
+    }
+
     BaseEnemyAIStateComponent* pCurrentState = GetCurrentState();
 
     LeaveAllStates(pState);
@@ -320,6 +325,15 @@ bool EnemyAIComponent::EnterBestState(bool canForceEnter)
 
     /*assert(pBestState != NULL);
     assert(bestStatePrio >= 0);*/
+
+    // No state was willing to be entered. The asserts above are commented out, so without
+    // this the block below would call EnterState(NULL) - which only asserts, and so
+    // dereferences null in a release build. Spawning an enemy whose states all decline
+    // (a grounded enemy with only Fall and attack states, say) hits this.
+    if (pBestState == NULL)
+    {
+        return false;
+    }
 
     if ((pCurrentState == NULL) ||
         !pCurrentState->VCanEnter() ||

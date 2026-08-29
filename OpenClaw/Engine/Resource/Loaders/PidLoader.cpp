@@ -53,6 +53,13 @@ WapPid* PidResourceLoader::LoadAndReturnPid(const char* resourceString, WapPal* 
     Resource resource(resourceString);
 
     shared_ptr<ResourceHandle> handle = g_pApp->GetResourceCache()->GetHandle(&resource);
+    if (!handle)
+    {
+        // ResourceCache::Load returns null when the resource cannot be found or read.
+        LOG_ERROR("Could not get resource handle for: " + std::string(resourceString));
+        return NULL;
+    }
+
     shared_ptr<PidResourceExtraData> extraData = std::static_pointer_cast<PidResourceExtraData>(handle->GetExtraData());
 
     if (!extraData)
@@ -77,6 +84,13 @@ shared_ptr<Image> PidResourceLoader::LoadAndReturnImage(const char* resourceStri
     Resource resource(resourceString);
 
     shared_ptr<ResourceHandle> handle = g_pApp->GetResourceCache()->GetHandle(&resource);
+    if (!handle)
+    {
+        // ResourceCache::Load returns null when the resource cannot be found or read.
+        LOG_ERROR("Could not get resource handle for: " + std::string(resourceString));
+        return NULL;
+    }
+
     shared_ptr<PidResourceExtraData> extraData = std::static_pointer_cast<PidResourceExtraData>(handle->GetExtraData());
 
     if (!extraData)

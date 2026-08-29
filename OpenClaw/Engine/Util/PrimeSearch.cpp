@@ -110,7 +110,11 @@ PrimeSearch::PrimeSearch(int elements)
     // elements. Go back to the web site.
     assert(prime_array[s - 1]>maxElements);
 
-    while (*currentPrime < maxElements)
+    // Bound the scan by the end of the table: the assert above is compiled out in release
+    // builds, and without a bound this walks off the array for any element count larger
+    // than the biggest prime it holds.
+    int* pLastPrime = prime_array + (s - 1);
+    while ((*currentPrime < maxElements) && (currentPrime < pLastPrime))
     {
         currentPrime++;
     }
