@@ -22,6 +22,10 @@ struct BasicStreamHelper
     }
 };
 
+// NOTE: the write path below (OutputStream) applies std::reverse to the *caller's*
+// variable after copying, so on a big-endian host it both writes wrong-endian bytes and
+// corrupts the source value. This is currently latent - OutputStream has no users in the
+// repo - and is left alone rather than changed blind. Fix it before writing any WAP file.
 template <>
 struct BasicStreamHelper<true>
 {

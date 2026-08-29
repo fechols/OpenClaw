@@ -276,6 +276,11 @@ Console::Console(uint16_t width, uint16_t height, TTF_Font* font, SDL_Renderer* 
 {
     assert(font != NULL);
 
+    // This overload takes a renderer but no window; both members are read elsewhere, so
+    // set them explicitly rather than leaving them indeterminate.
+    m_pRenderer = renderer;
+    m_pWindow = NULL;
+
     _width = width;
     _height = height;
     _font = font;

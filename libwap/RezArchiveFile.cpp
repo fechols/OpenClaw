@@ -37,6 +37,9 @@ static std::map<RezArchive*, RezFileVec*> g_rezArchiveFilesMap;
 
 uint8_t directorySeparator = '/';
 
+// Upper bound on a single entry's size as declared by the archive directory.
+static const uint32_t WAP_REZ_MAX_FILE_SIZE = 256u * 1024u * 1024u;
+
 /*************************************************************************/
 /*************************** HELPER FUNCTIONS ****************************/
 /*************************************************************************/
@@ -132,8 +135,16 @@ char* WAP_GetRezFileData(RezFile* rezFile)
             return NULL;
         }
 
+        // size comes straight from the archive directory, so cap it before it becomes an
+        // allocation. Far larger than any real entry in CLAW.REZ.
+        if (rezFile->size > WAP_REZ_MAX_FILE_SIZE)
+        {
+            return NULL;
+        }
+
         // Create new entry for rez file and allocate its data buffer
-        g_rezFileDataMap.insert(std::pair<RezFile*, char*>(rezFile, new char[rezFile->size]));
+        char* pFileData = new char[rezFile->size]();
+        g_rezFileDataMap.insert(std::pair<RezFile*, char*>(rezFile, pFileData));
 
         RezArchiveFileEntry* rezArchiveFileEntry = g_rezArchiveFileEntryMap[rezFile->owner];
 
@@ -141,7 +152,7 @@ char* WAP_GetRezFileData(RezFile* rezFile)
 
         // Seek to file's offset within REZ file and load it
         rezArchiveFileEntry->fileStream->seekg(rezFile->offset, std::ios::beg);
-        rezArchiveFileEntry->fileStream->read(g_rezFileDataMap[rezFile], rezFile->size);
+        rezArchiveFileEntry->fileStream->read(pFileData, rezFile->size);
     }
 
     return g_rezFileDataMap[rezFile];
